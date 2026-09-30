@@ -38,7 +38,7 @@ optional structured judge ┘                                  │
                                                CI thresholds and JSON artifact
 ```
 
-The LLM judge is intentionally a **protocol seam**, not an unaudited black box. A production adapter should use a provider’s structured output, validate its schema, pin model/prompt versions, record evaluation metadata, and keep deterministic blocking checks independent of provider availability.
+The optional OpenAI adapter calls Chat Completions with strict JSON-schema output, then validates the returned values locally. Its findings are reported separately from deterministic findings. They never replace a deterministic blocking finding.
 
 ## Quickstart
 
@@ -68,15 +68,28 @@ agent-evals --dataset evals/golden.json --min-recall 1.0 --max-false-positives 0
 
 That policy is intentionally strict for the small synthetic baseline. A real team should define thresholds per finding class, include enough examples to make the signal meaningful, and decide explicitly what must block deployment versus create an advisory finding.
 
-## Adding a semantic judge safely
+## Optional structured judge
 
-Implement the `StructuredJudge` protocol in `src/agent_evals/judge.py`. The adapter must return validated `Finding` objects, not free-form prose. Keep its configuration separate from the golden data; never allow a provider outage to convert a known deterministic safety violation into an approval.
+The default command and PR CI do not call a model or need a secret. A no-secret fake HTTP demo of the full opt-in CLI path is `.venv/bin/pytest -s tests/test_judge.py::test_cli_success_against_fake_http_provider`.
+
+To opt in with your own OpenAI account:
+
+```bash
+OPENAI_API_KEY=... .venv/bin/agent-evals --dataset evals/golden.json --judge openai \
+  --output artifacts/with-judge.json
+```
+
+This uses `gpt-4o-mini-2024-07-18`, prompt `support-review-v1`, and schema `findings-v1`. Set `--model` only if your account supports structured outputs with that model. `--api-url` supports a compatible endpoint for local tests, but only HTTPS or loopback HTTP. Check the destination before sending a key or dataset. `--timeout` bounds each request in seconds, `--retries` bounds retry attempts (default two retries), and `--retry-delay` controls backoff. The response is validated even when the API promises a strict schema. HTTP 408/429/5xx and network timeouts become `unavailable`; other 4xx responses become `rejected`; malformed, refused, or truncated replies become `invalid_response`. A requested but incomplete judge run writes its artifact and exits 2, even if deterministic metrics pass. A deterministic threshold failure exits 1.
+
+`metrics` and `observed_findings` remain deterministic. `judge_metrics` compare model findings to the dataset's expected labels only when all cases returned valid judgments. Each case includes the two separate finding lists, differences between them, attempts, latency, token usage, and status. The model's token-based `estimated_cost_usd` uses a documented static rate for the pinned model; `actual_cost_usd` is null because the provider response does not contain a billed charge. Confirm actual charges in your provider billing records. No paid call or provider performance is claimed here; the HTTP integration tests use a loopback fake server.
 
 ## Limitations
 
 - Regex rules are not a DLP system and do not detect all identifiers.
 - The dataset is deliberately small; it is a test fixture, not a statistically meaningful benchmark.
-- The included judge seam is disabled by default; no model API key is required for CI.
+- The judge is disabled by default; no model API key is required for CI. Provider runs are opt-in, and no live-provider result has been verified in this PR.
+- Golden labels are synthetic author-specified references, **not independently human-labeled**. Agreement with them is not human calibration. Independent human labeling and calibrated thresholds remain future work.
+- Estimates are not invoices. Model outputs vary, and a strict schema does not make semantic judgments correct. Evidence redaction uses the same narrow direct-identifier patterns as the rules, not a full privacy filter.
 - Precision/recall here are finding-type metrics, not a guarantee of safe agent behavior.
 
 ## Interview walkthrough
