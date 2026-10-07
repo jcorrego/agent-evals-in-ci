@@ -24,3 +24,9 @@ The synthetic golden labels were written with the fixture; they were not indepen
 ## CI policy
 
 The repository baseline requires recall of `1.0` and zero false positives. This is appropriate only because the sample is a tiny, controlled fixture. In a real workflow, configure policy by severity and decide which classes are blocking. For example, missed direct PII or unapproved financial mutations may require fail-closed behavior, while a citation-style warning could remain advisory.
+
+## Trace policy check (increment toward 0.3)
+
+`evals/traces-v1.json` defines synthetic ordered events and author-specified expectations. `agent-trace-evals` validates every event before evaluation, tracks prior retrieval IDs and grants, consumes a grant after one sensitive call, and flags missing citations, forbidden tools and calls made before analysis or without a grant. The separate JSON artifact records per-case false positives/negatives and per-severity metrics. CI fails on a missed blocking class or any false positive; warning misses remain visible but advisory. This small fixture has no repeated-run variance or calibrated thresholds yet.
+
+The evaluator is **not** an authorization system: the trace itself is untrusted and an attacker could forge a `granted` event or omit a call. Production systems must emit tamper-resistant events from verified tool/approval services; this evaluator only checks consistency of supplied events. Source markers prove only that the ID appeared earlier in the supplied trace, not that a claim is true. Summaries and response text are never exported in the trace result artifact.

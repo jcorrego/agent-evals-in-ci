@@ -18,6 +18,7 @@ dev = ["pytest>=8.0", "ruff>=0.8"]
 
 [project.scripts]
 agent-evals = "agent_evals.evaluate:main"
+agent-trace-evals = "agent_evals.traces:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agent_evals"]

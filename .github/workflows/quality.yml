@@ -25,8 +25,11 @@ jobs:
         run: pytest
       - name: Golden-set quality gate
         run: agent-evals --dataset evals/golden.json --min-recall 1.0 --max-false-positives 0
+      - name: Trace policy quality gate
+        run: agent-trace-evals --dataset evals/traces-v1.json
       - name: Upload evaluation artifact
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: evaluation-result
-          path: artifacts/evaluation.json
+          path: artifacts/*.json
