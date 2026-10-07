@@ -65,14 +65,20 @@ def test_schema_rejects_unknown_keys_kinds_duplicates_and_strings_as_boolean(tmp
 
 def test_cli_writes_artifact_and_fails_on_missed_blocking_finding(tmp_path, monkeypatch):
     dataset = tmp_path / "traces.json"
-    dataset.write_text(json.dumps({
-        "schema_version": "trace-v1",
-        "cases": [{
-            "case_id": "missed",
-            "events": [{"kind": "response", "text": "No citations"}],
-            "expected_findings": ["APPROVAL_BYPASS", "MISSING_EVIDENCE"],
-        }],
-    }))
+    dataset.write_text(
+        json.dumps(
+            {
+                "schema_version": "trace-v1",
+                "cases": [
+                    {
+                        "case_id": "missed",
+                        "events": [{"kind": "response", "text": "No citations"}],
+                        "expected_findings": ["APPROVAL_BYPASS", "MISSING_EVIDENCE"],
+                    }
+                ],
+            }
+        )
+    )
     output = tmp_path / "result.json"
     monkeypatch.setattr(
         "sys.argv", ["agent-trace-evals", "--dataset", str(dataset), "--output", str(output)]
@@ -82,3 +88,10 @@ def test_cli_writes_artifact_and_fails_on_missed_blocking_finding(tmp_path, monk
     result = json.loads(output.read_text())
     assert result["metrics_by_severity"]["blocking"]["false_negatives"] == 1
     assert result["metrics_by_severity"]["warning"]["true_positives"] == 1
+
+
+def test_ci_uploads_failure_artifact_after_quality_gate_failure():
+    workflow = (ROOT / ".github/workflows/quality.yml").read_text()
+    upload_step = workflow.split("      - name: Upload evaluation artifact\n", maxsplit=1)[1]
+    assert "        if: ${{ always() }}\n" in upload_step
+    assert "          path: artifacts/*.json\n" in upload_step

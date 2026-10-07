@@ -28,6 +28,7 @@ jobs:
       - name: Trace policy quality gate
         run: agent-trace-evals --dataset evals/traces-v1.json
       - name: Upload evaluation artifact
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: evaluation-result

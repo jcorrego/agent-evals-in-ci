@@ -1,4 +1,5 @@
 """Deterministic checks over synthetic agent trajectories, not a runtime authorization layer."""
+
 from __future__ import annotations
 
 import argparse
@@ -153,13 +154,15 @@ def evaluate_traces(cases: list[dict[str, Any]]) -> dict[str, Any]:
             counter[0] += len(actual_subset & expected_subset)
             counter[1] += len(actual_subset - expected_subset)
             counter[2] += len(expected_subset - actual_subset)
-        rows.append({
-            "case_id": case["case_id"],
-            "expected_findings": sorted(expected),
-            "observed_findings": sorted(found),
-            "false_negatives": sorted(expected - found),
-            "false_positives": sorted(found - expected),
-        })
+        rows.append(
+            {
+                "case_id": case["case_id"],
+                "expected_findings": sorted(expected),
+                "observed_findings": sorted(found),
+                "false_negatives": sorted(expected - found),
+                "false_positives": sorted(found - expected),
+            }
+        )
     return {
         "schema_version": SCHEMA_VERSION,
         "policy_version": "synthetic-tool-policy-v1",
