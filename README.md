@@ -83,6 +83,16 @@ This uses `gpt-4o-mini-2024-07-18`, prompt `support-review-v1`, and schema `find
 
 `metrics` and `observed_findings` remain deterministic. `judge_metrics` compare model findings to the dataset's expected labels only when all cases returned valid judgments. Each case includes the two separate finding lists, differences between them, attempts, latency, token usage, and status. The model's token-based `estimated_cost_usd` uses a documented static rate for the pinned model; `actual_cost_usd` is null because the provider response does not contain a billed charge. Confirm actual charges in your provider billing records. No paid call or provider performance is claimed here; the HTTP integration tests use a loopback fake server.
 
+## Synthetic trajectory evaluation
+
+The second CLI checks ordered read, analysis, approval, tool-call and response events. Run it with no provider secret:
+
+```bash
+.venv/bin/agent-trace-evals --dataset evals/traces-v1.json
+```
+
+This writes `artifacts/trace-evaluation.json` with per-case findings and metrics split into blocking and warning classes. A missed blocking finding or any false positive fails the CI gate; warning misses are reported as advisory. The fixture includes a forbidden tool, an asserted approval that does not authorize a call, an out-of-order mutation, and an invented citation. The grant recorded in a trace is only a claim for offline checking, not authorization. See [evaluation design](EVALUATION_DESIGN.md) and [ADR 0002](docs/adr/0002-trace-policy-evaluation.md). Trace variance, broader severity thresholds and report pages remain unfinished for release 0.3.
+
 ## Limitations
 
 - Regex rules are not a DLP system and do not detect all identifiers.
