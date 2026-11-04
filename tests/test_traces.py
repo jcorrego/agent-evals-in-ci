@@ -81,7 +81,16 @@ def test_cli_writes_artifact_and_fails_on_missed_blocking_finding(tmp_path, monk
     )
     output = tmp_path / "result.json"
     monkeypatch.setattr(
-        "sys.argv", ["agent-trace-evals", "--dataset", str(dataset), "--output", str(output)]
+        "sys.argv",
+        [
+            "agent-trace-evals",
+            "--dataset",
+            str(dataset),
+            "--output",
+            str(output),
+            "--report",
+            str(tmp_path / "report.html"),
+        ],
     )
     with pytest.raises(SystemExit, match="1"):
         main()
