@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from itertools import combinations
 from pathlib import Path
 from typing import Any
 
@@ -163,34 +164,53 @@ def evaluate_traces(cases: list[dict[str, Any]]) -> dict[str, Any]:
                 "false_positives": sorted(found - expected),
             }
         )
+    metrics = {severity: Metrics(*counts).to_dict() for severity, counts in totals.items()}
+    blocking_misses = metrics["blocking"]["false_negatives"]
+    false_positives = sum(entry["false_positives"] for entry in metrics.values())
     return {
         "schema_version": SCHEMA_VERSION,
         "policy_version": "synthetic-tool-policy-v1",
-        "metrics_by_severity": {
-            severity: Metrics(*counts).to_dict() for severity, counts in totals.items()
+        "metrics_by_severity": metrics,
+        "gate": {
+            "policy_version": "trace-gate-v1",
+            "passed": not blocking_misses and not false_positives,
+            "blocking_false_negatives": blocking_misses,
+            "false_positives": false_positives,
         },
         "cases": rows,
     }
 
 
 def main() -> None:
+    from .trace_reporting import bootstrap_intervals, render_report
+
     parser = argparse.ArgumentParser(description="Evaluate synthetic agent trajectories.")
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=Path("artifacts/trace-evaluation.json"))
+    parser.add_argument("--report", type=Path, default=Path("artifacts/trace-report.html"))
+    parser.add_argument("--bootstrap-samples", type=int, default=2000)
+    parser.add_argument("--bootstrap-seed", type=int, default=0)
     args = parser.parse_args()
     try:
+        paths = [path.resolve() for path in (args.dataset, args.output, args.report)]
+        if len(set(paths)) != len(paths):
+            raise ValueError("dataset, JSON output and HTML report must be distinct paths")
+        if any(a.exists() and b.exists() and a.samefile(b) for a, b in combinations(paths, 2)):
+            raise ValueError("dataset and artifacts must not be hard links to the same file")
         result = evaluate_traces(load_traces(args.dataset))
-    except (ValueError, KeyError, TypeError, OSError) as error:
+        result["bootstrap"] = bootstrap_intervals(
+            result["cases"], samples=args.bootstrap_samples, seed=args.bootstrap_seed
+        )
+    except (ValueError, KeyError, TypeError, OSError, RecursionError) as error:
         parser.error(str(error))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n")
+    args.report.parent.mkdir(parents=True, exist_ok=True)
+    args.report.write_text(render_report(result))
     print(json.dumps(result["metrics_by_severity"], sort_keys=True))
     # Missed blocking findings or any false positives invalidate the small reference baseline.
     # Warning misses are reported, but advisory until the dataset supports calibration.
-    metrics = result["metrics_by_severity"]
-    if metrics["blocking"]["false_negatives"] or any(
-        entry["false_positives"] for entry in metrics.values()
-    ):
+    if not result["gate"]["passed"]:
         raise SystemExit(1)
 
 

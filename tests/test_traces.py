@@ -81,7 +81,16 @@ def test_cli_writes_artifact_and_fails_on_missed_blocking_finding(tmp_path, monk
     )
     output = tmp_path / "result.json"
     monkeypatch.setattr(
-        "sys.argv", ["agent-trace-evals", "--dataset", str(dataset), "--output", str(output)]
+        "sys.argv",
+        [
+            "agent-trace-evals",
+            "--dataset",
+            str(dataset),
+            "--output",
+            str(output),
+            "--report",
+            str(tmp_path / "report.html"),
+        ],
     )
     with pytest.raises(SystemExit, match="1"):
         main()
@@ -94,4 +103,5 @@ def test_ci_uploads_failure_artifact_after_quality_gate_failure():
     workflow = (ROOT / ".github/workflows/quality.yml").read_text()
     upload_step = workflow.split("      - name: Upload evaluation artifact\n", maxsplit=1)[1]
     assert "        if: ${{ always() }}\n" in upload_step
-    assert "          path: artifacts/*.json\n" in upload_step
+    assert "            artifacts/*.json\n" in upload_step
+    assert "            artifacts/*.html\n" in upload_step

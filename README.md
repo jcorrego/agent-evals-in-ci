@@ -91,7 +91,21 @@ The second CLI checks ordered read, analysis, approval, tool-call and response e
 .venv/bin/agent-trace-evals --dataset evals/traces-v1.json
 ```
 
-This writes `artifacts/trace-evaluation.json` with per-case findings and metrics split into blocking and warning classes. A missed blocking finding or any false positive fails the CI gate; warning misses are reported as advisory. The fixture includes a forbidden tool, an asserted approval that does not authorize a call, an out-of-order mutation, and an invented citation. The grant recorded in a trace is only a claim for offline checking, not authorization. See [evaluation design](EVALUATION_DESIGN.md) and [ADR 0002](docs/adr/0002-trace-policy-evaluation.md). Trace variance, broader severity thresholds and report pages remain unfinished for release 0.3.
+This writes `artifacts/trace-evaluation.json` and a self-contained `artifacts/trace-report.html`. A missed blocking finding or any false positive fails the CI gate; warning misses remain advisory. Both artifacts are written before a failing gate exit and uploaded by CI. The fixture includes a forbidden tool, an asserted approval that does not authorize a call, an out-of-order mutation, and an invented citation. The grant recorded in a trace is only a claim for offline checking, not authorization.
+
+The report lists case/finding mismatches against the current expected labels, not changes from an earlier commit. Raw events, model summaries, response text and source IDs are omitted. Case IDs are escaped, not redacted; use synthetic pseudonyms. Open the HTML locally without a server or network access.
+
+The JSON also includes advisory 95% case-cluster bootstrap intervals for precision, recall and F1 by severity. The default resamples 2,000 whole casesets with seed 0. Change the work budget and destinations explicitly:
+
+```bash
+.venv/bin/agent-trace-evals --dataset evals/traces-v1.json \
+  --bootstrap-samples 1000 --bootstrap-seed 42 \
+  --output artifacts/trace-evaluation.json --report artifacts/trace-report.html
+```
+
+The sample budget is 1 to 10,000 draws. Each draw samples the same number of cases as the dataset, with replacement. Undefined ratios are excluded from their metric's percentile calculation and counted; all-undefined intervals have null bounds. Point metrics retain the original empty-denominator convention of 1.0. The report makes that difference visible. Perfect fixture agreement can produce [1, 1] intervals. This does not prove production safety or model stability: resampling measures fixture-composition sensitivity, not model-run variance. Intervals never loosen the deterministic gate.
+
+See [evaluation design](EVALUATION_DESIGN.md), [ADR 0002](docs/adr/0002-trace-policy-evaluation.md), [ADR 0003](docs/adr/0003-case-cluster-uncertainty-and-reports.md) and the [roadmap](ROADMAP.md) for remaining release work. No new release tag is claimed here.
 
 ## Limitations
 
