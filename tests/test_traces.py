@@ -94,4 +94,5 @@ def test_ci_uploads_failure_artifact_after_quality_gate_failure():
     workflow = (ROOT / ".github/workflows/quality.yml").read_text()
     upload_step = workflow.split("      - name: Upload evaluation artifact\n", maxsplit=1)[1]
     assert "        if: ${{ always() }}\n" in upload_step
-    assert "          path: artifacts/*.json\n" in upload_step
+    assert "            artifacts/*.json\n" in upload_step
+    assert "            artifacts/*.html\n" in upload_step
