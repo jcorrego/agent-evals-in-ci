@@ -53,8 +53,12 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def load_traces(path: Path) -> list[dict[str, Any]]:
+    return parse_traces(path.read_text(encoding="utf-8"))
+
+
+def parse_traces(content: str) -> list[dict[str, Any]]:
     root = _object(
-        json.loads(path.read_text(), object_pairs_hook=_unique_object),
+        json.loads(content, object_pairs_hook=_unique_object),
         {"schema_version", "cases"},
         "dataset",
     )
@@ -182,6 +186,7 @@ def evaluate_traces(cases: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def main() -> None:
+    from .trace_provenance import provenance
     from .trace_reporting import bootstrap_intervals, render_report
 
     parser = argparse.ArgumentParser(description="Evaluate synthetic agent trajectories.")
@@ -190,6 +195,7 @@ def main() -> None:
     parser.add_argument("--report", type=Path, default=Path("artifacts/trace-report.html"))
     parser.add_argument("--bootstrap-samples", type=int, default=2000)
     parser.add_argument("--bootstrap-seed", type=int, default=0)
+    parser.add_argument("--source-commit", help="Caller-asserted full Git commit, not attestation")
     args = parser.parse_args()
     try:
         paths = [path.resolve() for path in (args.dataset, args.output, args.report)]
@@ -197,7 +203,10 @@ def main() -> None:
             raise ValueError("dataset, JSON output and HTML report must be distinct paths")
         if any(a.exists() and b.exists() and a.samefile(b) for a, b in combinations(paths, 2)):
             raise ValueError("dataset and artifacts must not be hard links to the same file")
-        result = evaluate_traces(load_traces(args.dataset))
+        dataset = args.dataset.read_bytes()
+        metadata = provenance(dataset, args.source_commit)
+        result = evaluate_traces(parse_traces(dataset.decode("utf-8")))
+        result["provenance"] = metadata
         result["bootstrap"] = bootstrap_intervals(
             result["cases"], samples=args.bootstrap_samples, seed=args.bootstrap_seed
         )

@@ -22,11 +22,17 @@ jobs:
       - name: Lint
         run: ruff check .
       - name: Unit tests
-        run: pytest
+        run: pytest --junitxml=artifacts/test-results.xml
       - name: Golden-set quality gate
         run: agent-evals --dataset evals/golden.json --min-recall 1.0 --max-false-positives 0
       - name: Trace policy quality gate
-        run: agent-trace-evals --dataset evals/traces-v1.json
+        run: agent-trace-evals --dataset evals/traces-v1.json --source-commit "$GITHUB_SHA"
+      - name: Comparison CLI roundtrip, not a historical baseline gate
+        run: |
+          agent-trace-compare \
+            --baseline artifacts/trace-evaluation.json \
+            --candidate artifacts/trace-evaluation.json \
+            --baseline-commit "$GITHUB_SHA" --candidate-commit "$GITHUB_SHA"
       - name: Upload evaluation artifact
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
@@ -35,3 +41,4 @@ jobs:
           path: |
             artifacts/*.json
             artifacts/*.html
+            artifacts/*.xml
