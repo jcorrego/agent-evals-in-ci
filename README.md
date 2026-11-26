@@ -107,6 +107,37 @@ The sample budget is 1 to 10,000 draws. Each draw samples the same number of cas
 
 See [evaluation design](EVALUATION_DESIGN.md), [ADR 0002](docs/adr/0002-trace-policy-evaluation.md), [ADR 0003](docs/adr/0003-case-cluster-uncertainty-and-reports.md) and the [roadmap](ROADMAP.md) for remaining release work. No new release tag is claimed here.
 
+## Compare selected trace runs
+
+`agent-trace-compare` pairs two minimized artifacts by case ID and finding. It reports introduced and resolved expectation mismatches. The candidate's absolute gate still decides exit status: an existing blocking miss cannot pass just because the baseline has the same miss.
+
+For a local command/contract smoke test, evaluate and compare the same artifact:
+
+```bash
+COMMIT=$(git rev-parse HEAD)
+.venv/bin/agent-trace-evals --dataset evals/traces-v1.json --source-commit "$COMMIT"
+.venv/bin/agent-trace-compare \
+  --baseline artifacts/trace-evaluation.json --candidate artifacts/trace-evaluation.json \
+  --baseline-commit "$COMMIT" --candidate-commit "$COMMIT"
+```
+
+This writes `artifacts/trace-comparison.json` and `artifacts/trace-comparison.html`. It is a self-comparison, not evidence of improvement over a previous commit. CI runs this named roundtrip and uploads JSON, HTML and JUnit results.
+
+For a real paired comparison, first generate and retain a baseline artifact from the selected baseline checkout, with that checkout's full commit. Then generate a candidate artifact from the candidate checkout. Use separate paths and pass their exact commits:
+
+```bash
+# BASE_COMMIT and CANDIDATE_COMMIT must identify the actual selected checkouts.
+.venv/bin/agent-trace-compare \
+  --baseline ../baseline-trace.json --candidate artifacts/trace-evaluation.json \
+  --baseline-commit "$BASE_COMMIT" --candidate-commit "$CANDIDATE_COMMIT"
+```
+
+Both checkouts must support provenance. Legacy artifacts must be regenerated, not given guessed historical metadata. The CLI requires identical dataset bytes, case coverage, expected labels and supported evaluator/policy versions. Intentional changes require a separately reviewed rebaseline. Invalid or incompatible input exits 2 without writing new outputs. A valid candidate failure writes both reports before exit 1; success exits 0. Always check exit status because old output files may remain after an input error.
+
+Artifacts record dataset and evaluator-file SHA-256 hashes, evaluator contract version and the supplied full commit. Comparisons add exact artifact hashes and validate metrics/gates against per-case sets. **Commit identifiers are caller assertions, not authenticated build attestations.** A hash does not establish correct runtime behavior or honest findings. `--source-commit` can be omitted for standalone evaluation, but those artifacts cannot be compared. Identifiers must be exactly 40 lowercase hexadecimal characters; malformed values are not repaired.
+
+HTML escapes case IDs but does not redact them, and omits raw trace text. Inputs are limited to 5 MiB and 10,000 cases. Historical baseline retrieval, a GitHub check/summary and signed build provenance remain open. See [ADR 0004](docs/adr/0004-commit-selected-paired-comparisons.md) for hash scope, compatibility and review policy.
+
 ## Limitations
 
 - Regex rules are not a DLP system and do not detect all identifiers.
